@@ -1,0 +1,16 @@
+export default {
+	send(body, contact, replyId) {
+		if (replyId) {
+			Send_Reply_to_Text_Message.run(() => {}, () => {}, { text: body, contact, replyId });
+		} 
+		else if (/^https?:\/\/.*\.(png|jpg|jpeg|gif|bmp)$/.test(body)) {
+			Send_Image_Message_by_URL.run(() => {}, () => {}, { text: body, contact });
+		} 
+		else if (!/^https?:\/\/.*\.(png|jpg|jpeg|gif|bmp)$/.test(body) && body !== "") {
+			Send_Text_Message.run(() => {}, () => {}, { text: body, contact });
+		} 
+		else {
+			Send_Message_Template_Text.run(() => {}, () => {}, { contact });
+		}
+	}
+}
