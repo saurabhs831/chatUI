@@ -1,0 +1,131 @@
+export default {
+
+	//for getting lastSeen based on onclick select contact,
+	seen(con, selectTime) {
+		lastSeen.run(() => {}, () => {},{ con, selectTime });
+	},
+
+	//for Assigning User to Contact through assigned-to multi-select,
+	assign(con, value){
+		getAssigned.run(() => {}, () => {}, {con, value});
+	},
+
+	//for getting All-work contact list depending on selected stage,
+	contactList:[],
+	slectedStage:[],
+	getcontactList(){
+		getContacts.run();
+		if (this.slectedStage && this.slectedStage.length >0) {
+			this.contactList = getContacts.data.filter((item) => this.slectedStage.some(stage=>stage===item.leadStage));
+			console.log('get contactList');
+		}else{
+			this.contactList = getContacts.data;
+		}
+	}, 
+
+	//for getting My-work contact list depending on selected stage,
+	mycontactList:[],
+	myslectedStage:[],
+	getmycontactList(){
+		getContacts.run();
+		let tempcontactList = getContacts.data.filter((item) => item.assignedTo.some(sso=>sso===appsmith.store.ssodata));
+		if (this.myslectedStage && this.myslectedStage.length >0) {
+			this.mycontactList =tempcontactList.filter((item) => this.myslectedStage.some(stage=>stage===item.leadStage));
+			console.log('get mycontactList ');
+		}else{
+			this.mycontactList =tempcontactList;
+			console.log('mycontactList');
+		}
+	}, 
+
+	//to get chat messages of the selected contact,
+	selectedContact:"",
+	chatMessages:[],
+	async getchatMessages (selectedContact)  
+	{
+		this.selectedContact=selectedContact;
+		await get_Messages.run({ contact:selectedContact});
+		this.chatMessages=get_Messages.data;
+		console.log('chatMsg run',selectedContact);
+	},
+
+
+	//to update the necessary classes in every second,
+	async msgRender(){
+		setInterval(()=> {
+			this.getchatMessages(this.selectedContact);
+			this.getcontactList();
+			this.getmycontactList();
+			console.log('msgRender');
+		},1000);
+	},
+
+	//to render and show chat message in required formart for Iframe,
+	renderChat(datasource) {
+		const messagesHTML = datasource.map(currentItem => {
+			const alignValue = currentItem.type === 'received' ? 'flex-start' : 'flex-end';
+			const backgroundColor = currentItem.type === 'received' ? '#ffffff' : '#dcf8c6';
+			const body = currentItem.message.image ? currentItem.message.image.link : currentItem.message.text ? currentItem.message.text.body : 'Template';
+			const createdAt = moment(currentItem.createdAt).tz('Asia/Kolkata').format('h:mm a');
+			const messageId = currentItem.messageId;
+			const replyMessage = currentItem.message.context ? (datasource.filter((item) => item.messageId === currentItem.message.context.message_id))[0].message.text.body : "";
+
+			let messageContent = '';
+			if (/\.(jpg|jpeg|png|webp|avif|gif|svg)$/.test(body)) {
+				messageContent = `<img src="${body}" alt="Image" style="max-width: 200px; height: 200px;">`;
+			} else {
+				messageContent = body;
+			}
+
+			return `
+        <div style="display: flex; justify-content: ${alignValue};" key="${"currentItem._id"}">
+          ${replyMessage ? `
+            <div style="padding: 6px 7px 8px 9px;margin-bottom: 12px;font-size: 0.85rem;color: #000000;width: fit-content;max-width: 95%;line-height: 10px;border-radius: 10px;position: relative;white-space: pre-line;display: flex;background: ${backgroundColor};align-self: flex-start; justify-content: left;align-items: left;">
+              <div style="padding: 0px 10px 5px 10px;margin-bottom: 12px;font-size: 0.85rem;color: #000000;width: fit-content;max-width: 95%;line-height: 15px;border-radius: 10px;position: relative;white-space: pre-line;display: flex;background:#D9EEE1;align-self: flex-start;align-items: center;">
+                ${replyMessage}
+              </div>
+              <br />
+              <br />
+              ${messageContent}
+              <span style="width: 65px;display: inline-block;height: 3px;background: transparent;"></span>
+              <span style="position: absolute;display: flex;align-items: center;right: 7px;bottom: 3px;color: grey;font-size: 0.6rem;font-weight: 100;">
+                ${createdAt}
+              </span>
+            </div>
+          ` : `
+            <div style="padding: 2px 7px 20px 9px;margin-bottom: 10px;font-size: 0.85rem;color: #000000;width: fit-content;max-width: 100%;line-height: 10px;border-radius: 10px;position: relative;white-space: pre-line;display: flex;background: ${backgroundColor};align-self: flex-start; justify-content: left;align-items: left;height: fit-content;">
+              ${messageContent}
+              <span style="width: 65px;display: inline-block;height: 3px;background: transparent;"></span>
+              <span style="position: absolute;display: flex;align-items: center;right: 7px;bottom: 3px;color: grey;font-size: 0.6rem;font-weight: 100;">
+                ${createdAt}
+              </span>
+            </div>
+          `}
+          <button style="background: #E4DCD4;border: none;border-radius: 50%;align-items: center;" onclick="replyToMessage('${messageId}')">
+            <img src="https://cdn3d.iconscout.com/3d/premium/thumb/reply-button-7859035-6307901.png?f=webp" alt="Reply" style="width: 25px;height: 25px;display: flex;background: #E4DCD4;justify-content: center;align-items: center;">
+          </button>
+        </div>
+      `;
+		}).join('');
+
+		//to keep chat message container scrolled to bottom,to see latest message in below first,
+		return `
+      <div id="chatContainer" style="overflow-y: auto; max-height: 655px; scrollbar-width: thin;">
+        ${messagesHTML}
+        <script>
+          window.onload = function() {
+            const chatContainer = document.getElementById('chatContainer');
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+          };
+
+          function replyToMessage(message_Id, text) {
+            window.parent.postMessage(message_Id, '*');
+          };
+
+
+
+        </script>
+      </div>
+    `;
+	} 
+};
